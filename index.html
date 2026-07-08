@@ -158,7 +158,6 @@ const firebaseConfig = {
   appId: "1:702125982917:web:82da2d85f04d44f7fb1cac"
 };
 
-// Inicialización de Firebase de manera nativa
 firebase.initializeApp(firebaseConfig);
 const auth = firebase.auth();
 const db = firebase.firestore();
@@ -173,13 +172,22 @@ let state = {
     saveTimeout: null
 };
 
-const MIN_WAGE_HOUR = 39.38; // Salario mínimo base de referencia
+const MIN_WAGE_HOUR = 39.38;
 const STORAGE_KEY = "recetas";
 
-// Funciones auxiliares para ID y formateo
 const generateUid = () => Math.random().toString(36).slice(2, 10);
 const formatMoney = (n) => `$${(Number(n) || 0).toLocaleString("es-MX", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 const cleanNum = (v) => { const n = parseFloat(v); return Number.isFinite(n) ? n : 0; };
+
+// NUEVO: evita que un nombre de ingrediente con comillas ( " ) o simbolos
+// rompa el HTML de la tabla. Sin esto, escribir por ejemplo
+// Chocolate "Abuelita" desbarataba la fila.
+function escapeHtml(str) {
+    return String(str).replace(/[&<>"']/g, function (c) {
+        var map = { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" };
+        return map[c];
+    });
+}
 
 const createEmptyIngredient = () => ({
     id: generateUid(), name: "", qtyUsed: "", packageQty: "", packageCost: "", unit: "g"
@@ -249,7 +257,6 @@ async function loadUserData() {
     } catch (e) {
         console.error("Error cargando datos de Firestore:", e);
     }
-    // Si no hay datos previos, inicializa con una receta base vacía
     state.recipes = [createEmptyRecipe(1)];
     state.activeId = state.recipes[0].id;
     updateUI();
@@ -258,7 +265,7 @@ async function loadUserData() {
 function queueCloudSave() {
     const statusEl = document.getElementById("sync-status");
     statusEl.innerHTML = `<span class="text-amber-600 animate-pulse">Guardando en la nube…</span>`;
-    
+
     clearTimeout(state.saveTimeout);
     state.saveTimeout = setTimeout(async () => {
         try {
@@ -270,7 +277,7 @@ function queueCloudSave() {
         } catch (e) {
             statusEl.innerHTML = `<span class="text-rose-600">No se pudo guardar</span>`;
         }
-    }, 800); // Debounce de 800ms para no saturar las cuotas de Firestore
+    }, 800);
 }
 
 /* ======================================================================
@@ -284,7 +291,6 @@ function updateUI() {
     const active = getActiveRecipe();
     if (!active) return;
 
-    // 1. Renderizar Listado Lateral de Recetas
     const listContainer = document.getElementById("recipes-list");
     listContainer.innerHTML = "";
     state.recipes.forEach(r => {
@@ -295,10 +301,8 @@ function updateUI() {
         listContainer.appendChild(btn);
     });
 
-    // Ocultar botón borrar si solo queda una receta
     document.getElementById("btn-del-recipe").style.display = state.recipes.length > 1 ? "block" : "none";
 
-    // 2. Mapear Datos de la Receta Activa a Campos del Formulario Principal
     document.getElementById("recipe-name").value = active.name;
     document.getElementById("recipe-servings").value = active.servings;
     document.getElementById("cost-packaging").value = active.packagingCostPerUnit;
@@ -310,10 +314,9 @@ function updateUI() {
     document.getElementById("comm-propio").value = active.commissionPropio;
     document.getElementById("comm-apps").value = active.commissionApp;
 
-    // 3. Renderizar Tabla de Ingredientes dinámicamente
     const ingContainer = document.getElementById("ingredients-container");
     ingContainer.innerHTML = "";
-    
+
     active.ingredients.forEach(ing => {
         const qty = cleanNum(ing.qtyUsed);
         const pkgQty = cleanNum(ing.packageQty);
@@ -323,10 +326,10 @@ function updateUI() {
         const row = document.createElement("div");
         row.className = "grid grid-cols-2 sm:grid-cols-[1.4fr_0.7fr_0.9fr_0.9fr_0.7fr_auto] gap-2 items-center bg-stone-50 sm:bg-transparent rounded-lg p-2 sm:p-0 border border-stone-100 sm:border-none shadow-sm sm:shadow-none";
         row.innerHTML = `
-            <input type="text" placeholder="ej. Harina" value="${ing.name}" data-id="${ing.id}" data-field="name" class="ing-input col-span-2 sm:col-span-1 px-2.5 py-1.5 rounded-lg border border-stone-300 text-sm focus:ring-2 focus:ring-amber-400 focus:outline-none" />
-            <input type="number" placeholder="0" value="${ing.qtyUsed}" data-id="${ing.id}" data-field="qtyUsed" class="ing-input px-2.5 py-1.5 rounded-lg border border-stone-300 text-sm font-mono focus:ring-2 focus:ring-amber-400 focus:outline-none" />
-            <input type="number" placeholder="0" value="${ing.packageQty}" data-id="${ing.id}" data-field="packageQty" class="ing-input px-2.5 py-1.5 rounded-lg border border-stone-300 text-sm font-mono focus:ring-2 focus:ring-amber-400 focus:outline-none" />
-            <input type="number" placeholder="0" value="${ing.packageCost}" data-id="${ing.id}" data-field="packageCost" class="ing-input px-2.5 py-1.5 rounded-lg border border-stone-300 text-sm font-mono focus:ring-2 focus:ring-amber-400 focus:outline-none" />
+            <input type="text" placeholder="ej. Harina" value="${escapeHtml(ing.name)}" data-id="${ing.id}" data-field="name" class="ing-input col-span-2 sm:col-span-1 px-2.5 py-1.5 rounded-lg border border-stone-300 text-sm focus:ring-2 focus:ring-amber-400 focus:outline-none" />
+            <input type="number" placeholder="0" value="${escapeHtml(ing.qtyUsed)}" data-id="${ing.id}" data-field="qtyUsed" class="ing-input px-2.5 py-1.5 rounded-lg border border-stone-300 text-sm font-mono focus:ring-2 focus:ring-amber-400 focus:outline-none" />
+            <input type="number" placeholder="0" value="${escapeHtml(ing.packageQty)}" data-id="${ing.id}" data-field="packageQty" class="ing-input px-2.5 py-1.5 rounded-lg border border-stone-300 text-sm font-mono focus:ring-2 focus:ring-amber-400 focus:outline-none" />
+            <input type="number" placeholder="0" value="${escapeHtml(ing.packageCost)}" data-id="${ing.id}" data-field="packageCost" class="ing-input px-2.5 py-1.5 rounded-lg border border-stone-300 text-sm font-mono focus:ring-2 focus:ring-amber-400 focus:outline-none" />
             <select data-id="${ing.id}" data-field="unit" class="ing-input px-2 py-1.5 rounded-lg border border-stone-300 text-sm focus:ring-2 focus:ring-amber-400 focus:outline-none">
                 <option value="g" ${ing.unit==='g'?'selected':''}>g</option>
                 <option value="kg" ${ing.unit==='kg'?'selected':''}>kg</option>
@@ -363,12 +366,11 @@ function calculateTotals(active) {
     const indirectCostPerUnit = directCostPerUnit * (cleanNum(active.indirectPct) / 100);
     const laborCostTotal = (cleanNum(active.laborMinutes) / 60) * cleanNum(active.laborRate);
     const laborCostPerUnit = laborCostTotal / servings;
-    
+
     const totalCostPerUnit = directCostPerUnit + indirectCostPerUnit + laborCostPerUnit;
     const marginAmount = totalCostPerUnit * (cleanNum(active.marginPct) / 100);
     const directPrice = totalCostPerUnit + marginAmount;
 
-    // Comisiones aplicadas a los canales inversos
     const propioComm = Math.min(0.95, cleanNum(active.commissionPropio) / 100);
     const appComm = Math.min(0.95, cleanNum(active.commissionApp) / 100);
     const pricePropio = directPrice / (1 - propioComm);
@@ -376,7 +378,6 @@ function calculateTotals(active) {
 
     const ingredientPct = directPrice > 0 ? (ingredientCostPerUnit / directPrice) * 100 : 0;
 
-    // Pintar desglose
     const breakdownContainer = document.getElementById("breakdown-container");
     breakdownContainer.innerHTML = `
         <div class="flex justify-between py-1.5"><span class="text-stone-500">Ingredientes</span><span>${formatMoney(ingredientCostPerUnit)}</span></div>
@@ -388,7 +389,6 @@ function calculateTotals(active) {
         <div class="flex justify-between py-2 font-bold text-amber-900 text-base border-t-2 border-dashed border-amber-200"><span>Precio de Venta Directa</span><span>${formatMoney(directPrice)}</span></div>
     `;
 
-    // Indicador de Salud del Negocio
     const health = document.getElementById("health-indicator");
     health.innerText = `Tus ingredientes representan el ${ingredientPct.toFixed(0)}% del precio directo (rango sugerido: 25%-35%). `;
     if (ingredientPct >= 22 && ingredientPct <= 38) {
@@ -402,7 +402,6 @@ function calculateTotals(active) {
         health.innerText += "Tienes margen extra para mejorar insumos si lo deseas.";
     }
 
-    // Actualizar Precios de Tarjetas de Canal de Venta
     document.getElementById("price-direct").innerText = formatMoney(directPrice);
     document.getElementById("price-propio").innerText = formatMoney(pricePropio);
     document.getElementById("price-apps").innerText = formatMoney(priceApps);
@@ -411,48 +410,46 @@ function calculateTotals(active) {
 /* ======================================================================
    ESCUCHADORES DE EVENTOS E INTERACCIONES DEL DOM
    ====================================================================== */
-// Capturar cambios en inputs generales de la receta activa
 document.addEventListener("input", (e) => {
     const active = getActiveRecipe();
     if (!active) return;
 
-    if (e.target.id === "recipe-name") { active.name = e.target.value; updateUI(); queueCloudSave(); }
+    if (e.target.id === "recipe-name") { active.name = e.target.value; queueCloudSave(); }
     if (e.target.id === "recipe-servings") { active.servings = cleanNum(e.target.value); calculateTotals(active); queueCloudSave(); }
     if (e.target.id === "cost-packaging") { active.packagingCostPerUnit = e.target.value; calculateTotals(active); queueCloudSave(); }
     if (e.target.id === "cost-minutes") { active.laborMinutes = e.target.value; calculateTotals(active); queueCloudSave(); }
     if (e.target.id === "cost-labor-rate") { active.laborRate = e.target.value; calculateTotals(active); queueCloudSave(); }
     if (e.target.id === "cost-indirect-pct") { active.indirectPct = e.target.value; calculateTotals(active); queueCloudSave(); }
-    if (e.target.id === "cost-margin-range") { 
-        active.marginPct = e.target.value; 
+    if (e.target.id === "cost-margin-range") {
+        active.marginPct = e.target.value;
         document.getElementById("cost-margin-text").innerText = `${Number(active.marginPct).toFixed(0)}%`;
-        calculateTotals(active); 
-        queueCloudSave(); 
+        calculateTotals(active);
+        queueCloudSave();
     }
     if (e.target.id === "comm-propio") { active.commissionPropio = e.target.value; calculateTotals(active); queueCloudSave(); }
     if (e.target.id === "comm-apps") { active.commissionApp = e.target.value; calculateTotals(active); queueCloudSave(); }
 
-    // Escuchar cambios dinámicos dentro de las filas de ingredientes
     if (e.target.classList.contains("ing-input")) {
         const ingId = e.target.dataset.id;
         const field = e.target.dataset.field;
         const ingredient = active.ingredients.find(i => i.id === ingId);
         if (ingredient) {
             ingredient[field] = e.target.value;
-            // Si cambia numéricos, recalculamos totales en caliente sin redibujar toda la tabla para evitar perder foco
             calculateTotals(active);
             queueCloudSave();
         }
     }
 });
 
-// Forzar refresco visual completo si el foco sale de un input de ingrediente (para ajustar dinero estático)
 document.addEventListener("focusout", (e) => {
+    if (e.target.id === "recipe-name") {
+        updateUI();
+    }
     if (e.target.classList.contains("ing-input") && e.target.dataset.field !== "name") {
         updateUI();
     }
 });
 
-// Agregar Receta
 document.getElementById("btn-add-recipe").addEventListener("click", () => {
     const newRec = createEmptyRecipe(state.recipes.length + 1);
     state.recipes.push(newRec);
@@ -461,7 +458,6 @@ document.getElementById("btn-add-recipe").addEventListener("click", () => {
     queueCloudSave();
 });
 
-// Eliminar Receta Activa
 document.getElementById("btn-del-recipe").addEventListener("click", () => {
     if (state.recipes.length <= 1) return;
     state.recipes = state.recipes.filter(r => r.id !== state.activeId);
@@ -470,7 +466,6 @@ document.getElementById("btn-del-recipe").addEventListener("click", () => {
     queueCloudSave();
 });
 
-// Agregar Ingrediente
 document.getElementById("btn-add-ingredient").addEventListener("click", () => {
     const active = getActiveRecipe();
     active.ingredients.push(createEmptyIngredient());
@@ -478,11 +473,10 @@ document.getElementById("btn-add-ingredient").addEventListener("click", () => {
     queueCloudSave();
 });
 
-// Eliminar Ingrediente
 document.addEventListener("click", (e) => {
     if (e.target.classList.contains("btn-del-ing")) {
         const active = getActiveRecipe();
-        if (active.ingredients.length <= 1) return; // Forzar mínimo 1 fila
+        if (active.ingredients.length <= 1) return;
         const ingId = e.target.dataset.id;
         active.ingredients = active.ingredients.filter(i => i.id !== ingId);
         updateUI();
