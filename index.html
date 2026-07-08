@@ -1,527 +1,494 @@
 <!DOCTYPE html>
 <html lang="es">
 <head>
-<meta charset="UTF-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>Samate — Costeo &amp; Precios</title>
-<script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-auth-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore-compat.js"></script>
-<script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
-<script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
-<script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
-<script src="https://cdn.tailwindcss.com"></script>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Samate — Costeo &amp; Precios</title>
+    <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-auth-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore-compat.js"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
 </head>
-<body>
-<div id="root"></div>
+<body class="bg-stone-50 font-sans text-stone-800 min-h-screen">
 
-<script type="text/babel" data-presets="react">
-const { useState, useEffect, useRef } = React;
+    <div id="loading-screen" class="fixed inset-0 flex items-center justify-center bg-stone-50 text-stone-500 z-50">
+        <div class="text-center space-y-2">
+            <div class="animate-spin rounded-full h-8 w-8 border-b-2 border-amber-950 mx-auto"></div>
+            <p>Cargando aplicación…</p>
+        </div>
+    </div>
 
+    <div id="login-screen" class="hidden min-h-screen flex items-center justify-center px-6">
+        <div class="max-w-sm w-full text-center space-y-4">
+            <h1 class="font-serif text-4xl text-amber-950 tracking-tight">Samate</h1>
+            <p class="text-stone-500 text-sm">
+                Inicia sesión con tu cuenta de Google para guardar tus recetas en la nube y verlas desde cualquier dispositivo.
+            </p>
+            <button id="btn-login" class="px-5 py-2.5 rounded-lg bg-amber-950 text-amber-50 text-sm font-medium hover:bg-amber-900 transition-colors shadow">
+                Iniciar sesión con Google
+            </button>
+            <p id="auth-error" class="text-rose-600 text-xs hidden"></p>
+        </div>
+    </div>
+
+    <div id="app-screen" class="hidden">
+        <header class="bg-amber-950 text-amber-50 px-5 py-4 sm:px-8 shadow-md">
+            <div class="max-w-5xl mx-auto flex items-center justify-between gap-4">
+                <div>
+                    <h1 class="font-serif text-xl sm:text-2xl tracking-tight">Samate — Costeo &amp; Precios</h1>
+                    <p class="text-amber-200/80 text-xs mt-0.5">Control total de tus costos. El precio sale solo.</p>
+                </div>
+                <div class="text-right shrink-0">
+                    <p id="user-email" class="text-amber-200/70 text-xs font-mono"></p>
+                    <button id="btn-logout" class="text-amber-200/70 text-xs underline hover:text-amber-50 transition-colors">
+                        Cerrar sesión
+                    </button>
+                </div>
+            </div>
+        </header>
+
+        <main class="max-w-5xl mx-auto px-4 sm:px-8 py-6 grid grid-cols-1 lg:grid-cols-[220px_1fr] gap-6">
+            <section class="space-y-2">
+                <div class="text-xs font-semibold uppercase tracking-wide text-stone-400 px-1 mb-1">Tus recetas</div>
+                <div id="recipes-list" class="space-y-1.5"></div>
+                <button id="btn-add-recipe" class="w-full flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg border border-dashed border-stone-300 text-stone-500 text-sm hover:border-amber-400 hover:text-amber-700 transition-colors bg-white">
+                    + Nueva receta
+                </button>
+                <div id="sync-status" class="h-6 flex items-center px-1 text-xs text-stone-400 font-medium"></div>
+            </section>
+
+            <section id="recipe-editor" class="space-y-5">
+                <div class="bg-white border border-stone-200 rounded-xl p-4 sm:p-5 shadow-sm">
+                    <div class="flex flex-col sm:flex-row gap-3 sm:items-end">
+                        <div class="flex-1">
+                            <label class="text-xs font-medium text-stone-500">Nombre de la receta</label>
+                            <input id="recipe-name" type="text" class="w-full mt-1 px-3 py-2 rounded-lg border border-stone-300 focus:outline-none focus:ring-2 focus:ring-amber-400 text-sm" />
+                        </div>
+                        <div class="w-full sm:w-40">
+                            <label class="text-xs font-medium text-stone-500">Piezas que rinde</label>
+                            <input id="recipe-servings" type="number" min="1" class="w-full mt-1 px-3 py-2 rounded-lg border border-stone-300 focus:outline-none focus:ring-2 focus:ring-amber-400 text-sm font-mono" />
+                        </div>
+                        <button id="btn-del-recipe" class="px-3 py-2 rounded-lg border border-stone-200 text-stone-400 hover:text-rose-600 hover:border-rose-200 transition-colors shadow-sm" title="Eliminar receta">
+                            🗑
+                        </button>
+                    </div>
+                </div>
+
+                <div class="bg-white border border-stone-200 rounded-xl p-4 sm:p-5 shadow-sm">
+                    <div class="flex items-center gap-2 mb-3"><span>📦</span><h2 class="font-serif text-lg text-stone-900">Ingredientes</h2></div>
+                    <div class="hidden sm:grid grid-cols-[1.4fr_0.7fr_0.9fr_0.9fr_0.7fr_auto] gap-2 px-1 text-xs font-medium text-stone-400 mb-1">
+                        <div>Ingrediente</div><div>Usaste</div><div>Paquete (cant.)</div><div>Paquete (costo)</div><div>Unidad</div><div></div>
+                    </div>
+                    <div id="ingredients-container" class="space-y-2"></div>
+                    <button id="btn-add-ingredient" class="mt-3 flex items-center gap-1.5 text-sm text-amber-700 hover:text-amber-900 font-medium transition-colors">
+                        + Agregar ingrediente
+                    </button>
+                </div>
+
+                <div class="bg-white border border-stone-200 rounded-xl p-4 sm:p-5 shadow-sm">
+                    <div class="flex items-center gap-2 mb-3"><span>%</span><h2 class="font-serif text-lg text-stone-900">Costos indirectos, tiempo y margen</h2></div>
+                    <div class="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                        <div>
+                            <label class="text-xs font-medium text-stone-500">Empaque / pieza</label>
+                            <input id="cost-packaging" type="number" step="0.01" class="w-full mt-1 px-2.5 py-1.5 rounded-lg border border-stone-300 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-amber-400" />
+                        </div>
+                        <div>
+                            <label class="text-xs font-medium text-stone-500">⏱ Minutos totales</label>
+                            <input id="cost-minutes" type="number" class="w-full mt-1 px-2.5 py-1.5 rounded-lg border border-stone-300 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-amber-400" />
+                        </div>
+                        <div>
+                            <label class="text-xs font-medium text-stone-500">Tu hora vale</label>
+                            <input id="cost-labor-rate" type="number" step="0.01" class="w-full mt-1 px-2.5 py-1.5 rounded-lg border border-stone-300 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-amber-400" />
+                        </div>
+                        <div>
+                            <label class="text-xs font-medium text-stone-500">% indirectos</label>
+                            <input id="cost-indirect-pct" type="number" class="w-full mt-1 px-2.5 py-1.5 rounded-lg border border-stone-300 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-amber-400" />
+                        </div>
+                    </div>
+                    <div class="mt-4 grid grid-cols-1 sm:grid-cols-[1fr_auto] gap-3 items-end">
+                        <div>
+                            <label class="text-xs font-medium text-stone-500">Margen de ganancia deseado (%)</label>
+                            <input id="cost-margin-range" type="range" min="10" max="150" class="w-full mt-2 accent-amber-700" />
+                        </div>
+                        <div id="cost-margin-text" class="font-mono text-amber-800 text-lg font-semibold text-right">40%</div>
+                    </div>
+                </div>
+
+                <div class="bg-white border border-stone-200 rounded-xl p-4 sm:p-5 shadow-sm">
+                    <h2 class="font-serif text-lg text-stone-900 mb-3">Desglose por pieza</h2>
+                    <div id="breakdown-container" class="text-sm font-mono divide-y divide-stone-100"></div>
+                    <div id="health-indicator" class="mt-4 text-xs rounded-lg px-3 py-2 font-medium"></div>
+                </div>
+
+                <div class="bg-white border border-stone-200 rounded-xl p-4 sm:p-5 shadow-sm">
+                    <h2 class="font-serif text-lg text-stone-900 mb-1">Precio por canal de venta</h2>
+                    <p class="text-xs text-stone-400 mb-4">Misma ganancia real — el precio escala según las comisiones de la plataforma (incluye el 16% de IVA sobre comisión).</p>
+                    <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                        <div class="rounded-xl border p-3.5 bg-emerald-50 border-emerald-200 text-emerald-900">
+                            <div class="text-xs font-semibold uppercase tracking-wide opacity-80">🛵 Directo</div>
+                            <div id="price-direct" class="mt-2 text-2xl font-mono font-semibold">$0.00</div>
+                            <div class="mt-1 text-[11px] opacity-70">Entrega propia o local</div>
+                        </div>
+                        <div class="rounded-xl border p-3.5 bg-amber-50 border-amber-200 text-amber-900">
+                            <div class="text-xs font-semibold uppercase tracking-wide opacity-80">🚚 DiDi Food (Reparto Propio)</div>
+                            <div id="price-propio" class="mt-2 text-2xl font-mono font-semibold">$0.00</div>
+                            <div class="mt-2 text-xs opacity-80">Comisión: <input id="comm-propio" type="number" step="0.1" class="w-12 px-1 py-0.5 rounded border border-stone-300 text-stone-800 text-xs font-mono" />%</div>
+                        </div>
+                        <div class="rounded-xl border p-3.5 bg-rose-50 border-rose-200 text-rose-900">
+                            <div class="text-xs font-semibold uppercase tracking-wide opacity-80">🏪 Uber / Rappi / DiDi App</div>
+                            <div id="price-apps" class="mt-2 text-2xl font-mono font-semibold">$0.00</div>
+                            <div class="mt-2 text-xs opacity-80">Comisión: <input id="comm-apps" type="number" step="0.1" class="w-12 px-1 py-0.5 rounded border border-stone-300 text-stone-800 text-xs font-mono" />%</div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+        </main>
+    </div>
+
+<script>
 /* ======================================================================
-   PASO OBLIGATORIO: pega aquí la configuración de TU proyecto de Firebase.
-   La sacas de: Firebase Console > Configuración del proyecto > Tus apps > (icono web) > Config.
-   Este objeto es público por diseño (Firebase lo protege con las Reglas de
-   seguridad de Firestore, no ocultándolo) así que no pasa nada por dejarlo
-   visible en el HTML.
+   CONFIGURACIÓN DE TU PROYECTO DE FIREBASE
    ====================================================================== */
 const firebaseConfig = {
-  apiKey: "PEGA_AQUI_TU_API_KEY",
-  authDomain: "PEGA_AQUI_TU_PROYECTO.firebaseapp.com",
-  projectId: "PEGA_AQUI_TU_PROYECTO",
-  storageBucket: "PEGA_AQUI_TU_PROYECTO.appspot.com",
-  messagingSenderId: "PEGA_AQUI_TU_SENDER_ID",
-  appId: "PEGA_AQUI_TU_APP_ID",
+  apiKey: "AIzaSyCyIWZHP2XauZdM1bl9Jpz_LinbiwKxFnk",
+  authDomain: "samate-costos.firebaseapp.com",
+  projectId: "samate-costos",
+  storageBucket: "samate-costos.firebasestorage.app",
+  messagingSenderId: "702125982917",
+  appId: "1:702125982917:web:82da2d85f04d44f7fb1cac"
 };
 
+// Inicialización de Firebase de manera nativa
 firebase.initializeApp(firebaseConfig);
 const auth = firebase.auth();
 const db = firebase.firestore();
 
-const MIN_WAGE_HOUR = 39.38;
+/* ======================================================================
+   ESTADO GLOBAL DE LA APLICACIÓN (Single Source of Truth)
+   ====================================================================== */
+let state = {
+    user: null,
+    recipes: [],
+    activeId: null,
+    saveTimeout: null
+};
+
+const MIN_WAGE_HOUR = 39.38; // Salario mínimo base de referencia
 const STORAGE_KEY = "recetas";
 
-const storage = {
-  get: async (uid) => {
-    const snap = await db.collection("usuarios").doc(uid).get();
-    if (!snap.exists) return null;
-    const data = snap.data();
-    return data && data[STORAGE_KEY] ? { value: data[STORAGE_KEY] } : null;
-  },
-  set: async (uid, value) => {
-    await db.collection("usuarios").doc(uid).set({ [STORAGE_KEY]: value }, { merge: true });
-    return { value };
-  },
-};
+// Funciones auxiliares para ID y formateo
+const generateUid = () => Math.random().toString(36).slice(2, 10);
+const formatMoney = (n) => `$${(Number(n) || 0).toLocaleString("es-MX", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+const cleanNum = (v) => { const n = parseFloat(v); return Number.isFinite(n) ? n : 0; };
 
-const uid_ = () => Math.random().toString(36).slice(2, 10);
-
-const emptyIngredient = () => ({
-  id: uid_(),
-  name: "",
-  qtyUsed: "",
-  packageQty: "",
-  packageCost: "",
-  unit: "g",
+const createEmptyIngredient = () => ({
+    id: generateUid(), name: "", qtyUsed: "", packageQty: "", packageCost: "", unit: "g"
 });
 
-const emptyRecipe = (n = 1) => ({
-  id: uid_(),
-  name: `Receta ${n}`,
-  servings: 12,
-  packagingCostPerUnit: 3,
-  laborMinutes: 60,
-  laborRate: MIN_WAGE_HOUR,
-  indirectPct: 10,
-  marginPct: 40,
-  commissionPropio: 20.9,
-  commissionApp: 34.8,
-  ingredients: [emptyIngredient()],
+const createEmptyRecipe = (index = 1) => ({
+    id: generateUid(),
+    name: `Receta ${index}`,
+    servings: 12,
+    packagingCostPerUnit: 3,
+    laborMinutes: 60,
+    laborRate: MIN_WAGE_HOUR,
+    indirectPct: 10,
+    marginPct: 40,
+    commissionPropio: 20.9,
+    commissionApp: 34.8,
+    ingredients: [createEmptyIngredient()]
 });
 
-const num = (v) => {
-  const n = parseFloat(v);
-  return Number.isFinite(n) ? n : 0;
-};
+/* ======================================================================
+   CONTROL DE FLUJO DE PANTALLAS Y ENTRADA/SALIDA
+   ====================================================================== */
+auth.onAuthStateChanged(async (user) => {
+    document.getElementById("loading-screen").classList.add("hidden");
+    if (user) {
+        state.user = user;
+        document.getElementById("user-email").innerText = user.email;
+        document.getElementById("login-screen").classList.add("hidden");
+        document.getElementById("app-screen").classList.remove("hidden");
+        await loadUserData();
+    } else {
+        state.user = null;
+        state.recipes = [];
+        state.activeId = null;
+        document.getElementById("app-screen").classList.add("hidden");
+        document.getElementById("login-screen").classList.remove("hidden");
+    }
+});
 
-const money = (n) =>
-  `$${n.toLocaleString("es-MX", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
-
-const UNITS = ["g", "kg", "ml", "l", "pieza"];
-
-function App() {
-  const [user, setUser] = useState(undefined);
-  const [authError, setAuthError] = useState("");
-
-  useEffect(() => {
-    return auth.onAuthStateChanged(setUser);
-  }, []);
-
-  const signIn = () => {
-    setAuthError("");
+document.getElementById("btn-login").addEventListener("click", () => {
+    const errorEl = document.getElementById("auth-error");
+    errorEl.classList.add("hidden");
     const provider = new firebase.auth.GoogleAuthProvider();
-    auth.signInWithPopup(provider).catch((err) => setAuthError(err.message));
-  };
+    auth.signInWithPopup(provider).catch(err => {
+        errorEl.innerText = err.message;
+        errorEl.classList.remove("hidden");
+    });
+});
 
-  if (user === undefined) {
-    return (
-      <div className="min-h-[300px] flex items-center justify-center bg-stone-50 text-stone-500 font-sans">
-        Cargando…
-      </div>
-    );
-  }
+document.getElementById("btn-logout").addEventListener("click", () => auth.signOut());
 
-  if (!user) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-stone-50 font-sans px-6">
-        <div className="max-w-sm w-full text-center space-y-4">
-          <h1 className="font-serif text-3xl text-amber-950">Samate</h1>
-          <p className="text-stone-500 text-sm">
-            Inicia sesión con tu cuenta de Google para guardar tus recetas en la nube y verlas
-            desde cualquier dispositivo.
-          </p>
-          <button
-            onClick={signIn}
-            className="px-5 py-2.5 rounded-lg bg-amber-950 text-amber-50 text-sm font-medium hover:bg-amber-900 transition-colors"
-          >
-            Iniciar sesión con Google
-          </button>
-          {authError && <p className="text-rose-600 text-xs">{authError}</p>}
-        </div>
-      </div>
-    );
-  }
-
-  return <CosteoPostres uid={user.uid} email={user.email} onSignOut={() => auth.signOut()} />;
+/* ======================================================================
+   MANEJO DE BASE DE DATOS FIRESTORE (Lectura y Escritura)
+   ====================================================================== */
+async function loadUserData() {
+    try {
+        const docSnap = await db.collection("usuarios").doc(state.user.uid).get();
+        if (docSnap.exists && docSnap.data()[STORAGE_KEY]) {
+            const cloudRecipes = JSON.parse(docSnap.data()[STORAGE_KEY]);
+            if (Array.isArray(cloudRecipes) && cloudRecipes.length > 0) {
+                state.recipes = cloudRecipes;
+                state.activeId = cloudRecipes[0].id;
+                updateUI();
+                return;
+            }
+        }
+    } catch (e) {
+        console.error("Error cargando datos de Firestore:", e);
+    }
+    // Si no hay datos previos, inicializa con una receta base vacía
+    state.recipes = [createEmptyRecipe(1)];
+    state.activeId = state.recipes[0].id;
+    updateUI();
 }
 
-function CosteoPostres({ uid, email, onSignOut }) {
-  const [recipes, setRecipes] = useState([emptyRecipe(1)]);
-  const [activeId, setActiveId] = useState(null);
-  const [status, setStatus] = useState("loading");
-  const [saveTick, setSaveTick] = useState(null);
-  const firstLoad = useRef(true);
-
-  useEffect(() => {
-    (async () => {
-      try {
-        const res = await storage.get(uid);
-        if (res && res.value) {
-          const parsed = JSON.parse(res.value);
-          if (Array.isArray(parsed) && parsed.length > 0) {
-            setRecipes(parsed);
-            setActiveId(parsed[0].id);
-            setStatus("ready");
-            return;
-          }
+function queueCloudSave() {
+    const statusEl = document.getElementById("sync-status");
+    statusEl.innerHTML = `<span class="text-amber-600 animate-pulse">Guardando en la nube…</span>`;
+    
+    clearTimeout(state.saveTimeout);
+    state.saveTimeout = setTimeout(async () => {
+        try {
+            await db.collection("usuarios").doc(state.user.uid).set({
+                [STORAGE_KEY]: JSON.stringify(state.recipes)
+            }, { merge: true });
+            statusEl.innerHTML = `<span class="text-emerald-600">✓ Guardado</span>`;
+            setTimeout(() => { if(!state.saveTimeout) statusEl.innerHTML = ""; }, 2000);
+        } catch (e) {
+            statusEl.innerHTML = `<span class="text-rose-600">No se pudo guardar</span>`;
         }
-      } catch (e) {}
-      setActiveId(recipes[0].id);
-      setStatus("ready");
-    })();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+    }, 800); // Debounce de 800ms para no saturar las cuotas de Firestore
+}
 
-  useEffect(() => {
-    if (status !== "ready") return;
-    if (firstLoad.current) {
-      firstLoad.current = false;
-      return;
-    }
-    setSaveTick("saving");
-    const t = setTimeout(async () => {
-      try {
-        await storage.set(uid, JSON.stringify(recipes));
-        setSaveTick("saved");
-        setTimeout(() => setSaveTick(null), 1400);
-      } catch (e) {
-        setSaveTick("error");
-      }
-    }, 500);
-    return () => clearTimeout(t);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [recipes, status]);
+/* ======================================================================
+   SISTEMA DE RENDERIZADO REACTIVO DINÁMICO (Vanilla JS)
+   ====================================================================== */
+function getActiveRecipe() {
+    return state.recipes.find(r => r.id === state.activeId) || state.recipes[0];
+}
 
-  const active = recipes.find((r) => r.id === activeId) || recipes[0];
+function updateUI() {
+    const active = getActiveRecipe();
+    if (!active) return;
 
-  const patchActive = (patch) =>
-    setRecipes((rs) => rs.map((r) => (r.id === active.id ? { ...r, ...patch } : r)));
-
-  const patchIngredient = (id, patch) =>
-    patchActive({
-      ingredients: active.ingredients.map((i) => (i.id === id ? { ...i, ...patch } : i)),
+    // 1. Renderizar Listado Lateral de Recetas
+    const listContainer = document.getElementById("recipes-list");
+    listContainer.innerHTML = "";
+    state.recipes.forEach(r => {
+        const btn = document.createElement("button");
+        btn.className = `w-full text-left px-3 py-2 rounded-lg border text-sm transition-all ${r.id === state.activeId ? 'bg-amber-100 border-amber-300 text-amber-900 font-medium shadow-sm' : 'bg-white border-stone-200 text-stone-600 hover:border-amber-200'}`;
+        btn.innerText = r.name || "Sin nombre";
+        btn.onclick = () => { state.activeId = r.id; updateUI(); };
+        listContainer.appendChild(btn);
     });
 
-  const addIngredient = () =>
-    patchActive({ ingredients: [...active.ingredients, emptyIngredient()] });
+    // Ocultar botón borrar si solo queda una receta
+    document.getElementById("btn-del-recipe").style.display = state.recipes.length > 1 ? "block" : "none";
 
-  const removeIngredient = (id) => {
-    if (active.ingredients.length === 1) return;
-    patchActive({ ingredients: active.ingredients.filter((i) => i.id !== id) });
-  };
+    // 2. Mapear Datos de la Receta Activa a Campos del Formulario Principal
+    document.getElementById("recipe-name").value = active.name;
+    document.getElementById("recipe-servings").value = active.servings;
+    document.getElementById("cost-packaging").value = active.packagingCostPerUnit;
+    document.getElementById("cost-minutes").value = active.laborMinutes;
+    document.getElementById("cost-labor-rate").value = active.laborRate;
+    document.getElementById("cost-indirect-pct").value = active.indirectPct;
+    document.getElementById("cost-margin-range").value = active.marginPct;
+    document.getElementById("cost-margin-text").innerText = `${Number(active.marginPct).toFixed(0)}%`;
+    document.getElementById("comm-propio").value = active.commissionPropio;
+    document.getElementById("comm-apps").value = active.commissionApp;
 
-  const addRecipe = () => {
-    const r = emptyRecipe(recipes.length + 1);
-    setRecipes((rs) => [...rs, r]);
-    setActiveId(r.id);
-  };
+    // 3. Renderizar Tabla de Ingredientes dinámicamente
+    const ingContainer = document.getElementById("ingredients-container");
+    ingContainer.innerHTML = "";
+    
+    active.ingredients.forEach(ing => {
+        const qty = cleanNum(ing.qtyUsed);
+        const pkgQty = cleanNum(ing.packageQty);
+        const pkgCost = cleanNum(ing.packageCost);
+        const totalIngCost = pkgQty > 0 ? (qty / pkgQty) * pkgCost : 0;
 
-  const removeRecipe = (id) => {
-    if (recipes.length === 1) return;
-    const rest = recipes.filter((r) => r.id !== id);
-    setRecipes(rest);
-    if (activeId === id) setActiveId(rest[0].id);
-  };
-
-  if (status === "loading" || !active) {
-    return (
-      <div className="min-h-[300px] flex items-center justify-center bg-stone-50 text-stone-500 font-sans">
-        Cargando tus recetas…
-      </div>
-    );
-  }
-
-  const ingredientCostTotal = active.ingredients.reduce((sum, ing) => {
-    const qty = num(ing.qtyUsed);
-    const pkgQty = num(ing.packageQty);
-    const pkgCost = num(ing.packageCost);
-    if (pkgQty <= 0) return sum;
-    return sum + (qty / pkgQty) * pkgCost;
-  }, 0);
-
-  const servings = Math.max(1, num(active.servings));
-  const ingredientCostPerUnit = ingredientCostTotal / servings;
-  const packagingCostPerUnit = num(active.packagingCostPerUnit);
-  const directCostPerUnit = ingredientCostPerUnit + packagingCostPerUnit;
-  const indirectCostPerUnit = directCostPerUnit * (num(active.indirectPct) / 100);
-  const laborCostTotal = (num(active.laborMinutes) / 60) * num(active.laborRate);
-  const laborCostPerUnit = laborCostTotal / servings;
-  const totalCostPerUnit = directCostPerUnit + indirectCostPerUnit + laborCostPerUnit;
-  const marginAmount = totalCostPerUnit * (num(active.marginPct) / 100);
-  const directPrice = totalCostPerUnit + marginAmount;
-
-  const propioComm = Math.min(0.95, num(active.commissionPropio) / 100);
-  const appComm = Math.min(0.95, num(active.commissionApp) / 100);
-  const pricePropio = directPrice / (1 - propioComm);
-  const priceApps = directPrice / (1 - appComm);
-
-  const ingredientPct = directPrice > 0 ? (ingredientCostPerUnit / directPrice) * 100 : 0;
-  const inHealthyRange = ingredientPct >= 22 && ingredientPct <= 38;
-
-  return (
-    <div className="min-h-screen bg-stone-50 font-sans text-stone-800">
-      <div className="bg-amber-950 text-amber-50 px-5 py-6 sm:px-8">
-        <div className="max-w-5xl mx-auto flex items-center justify-between gap-4">
-          <div>
-            <h1 className="font-serif text-2xl sm:text-3xl tracking-tight">Samate — Costeo &amp; precios</h1>
-            <p className="text-amber-200/80 text-sm mt-1">Anota tu receta real. El precio sale solo.</p>
-          </div>
-          <div className="text-right shrink-0">
-            <p className="text-amber-200/70 text-xs">{email}</p>
-            <button onClick={onSignOut} className="text-amber-200/70 text-xs underline hover:text-amber-50">
-              Cerrar sesión
-            </button>
-          </div>
-        </div>
-      </div>
-
-      <div className="max-w-5xl mx-auto px-5 sm:px-8 py-6 grid grid-cols-1 lg:grid-cols-[220px_1fr] gap-6">
-        <div className="space-y-2">
-          <div className="text-xs font-semibold uppercase tracking-wide text-stone-400 px-1 mb-1">Tus recetas</div>
-          {recipes.map((r) => (
-            <button
-              key={r.id}
-              onClick={() => setActiveId(r.id)}
-              className={`w-full text-left px-3 py-2 rounded-lg border text-sm transition-colors ${
-                r.id === active.id
-                  ? "bg-amber-100 border-amber-300 text-amber-900 font-medium"
-                  : "bg-white border-stone-200 text-stone-600 hover:border-amber-200"
-              }`}
-            >
-              {r.name || "Sin nombre"}
-            </button>
-          ))}
-          <button
-            onClick={addRecipe}
-            className="w-full flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg border border-dashed border-stone-300 text-stone-500 text-sm hover:border-amber-400 hover:text-amber-700 transition-colors"
-          >
-            + Nueva receta
-          </button>
-          <div className="h-6 flex items-center px-1 text-xs text-stone-400">
-            {saveTick === "saving" && "Guardando en la nube…"}
-            {saveTick === "saved" && <span className="text-emerald-600">✓ Guardado</span>}
-            {saveTick === "error" && <span className="text-rose-600">No se pudo guardar</span>}
-          </div>
-        </div>
-
-        <div className="space-y-5">
-          <div className="bg-white border border-stone-200 rounded-xl p-4 sm:p-5">
-            <div className="flex flex-col sm:flex-row gap-3 sm:items-end">
-              <div className="flex-1">
-                <label className="text-xs font-medium text-stone-500">Nombre de la receta</label>
-                <input
-                  value={active.name}
-                  onChange={(e) => patchActive({ name: e.target.value })}
-                  className="w-full mt-1 px-3 py-2 rounded-lg border border-stone-300 focus:outline-none focus:ring-2 focus:ring-amber-400 text-sm"
-                  placeholder="ej. Brownie de sartén"
-                />
-              </div>
-              <div className="w-full sm:w-40">
-                <label className="text-xs font-medium text-stone-500">Piezas que rinde</label>
-                <input
-                  type="number"
-                  min="1"
-                  value={active.servings}
-                  onChange={(e) => patchActive({ servings: e.target.value })}
-                  className="w-full mt-1 px-3 py-2 rounded-lg border border-stone-300 focus:outline-none focus:ring-2 focus:ring-amber-400 text-sm font-mono"
-                />
-              </div>
-              {recipes.length > 1 && (
-                <button
-                  onClick={() => removeRecipe(active.id)}
-                  className="px-3 py-2 rounded-lg border border-stone-200 text-stone-400 hover:text-rose-600 hover:border-rose-200 transition-colors"
-                  title="Eliminar esta receta"
-                >
-                  🗑
-                </button>
-              )}
+        const row = document.createElement("div");
+        row.className = "grid grid-cols-2 sm:grid-cols-[1.4fr_0.7fr_0.9fr_0.9fr_0.7fr_auto] gap-2 items-center bg-stone-50 sm:bg-transparent rounded-lg p-2 sm:p-0 border border-stone-100 sm:border-none shadow-sm sm:shadow-none";
+        row.innerHTML = `
+            <input type="text" placeholder="ej. Harina" value="${ing.name}" data-id="${ing.id}" data-field="name" class="ing-input col-span-2 sm:col-span-1 px-2.5 py-1.5 rounded-lg border border-stone-300 text-sm focus:ring-2 focus:ring-amber-400 focus:outline-none" />
+            <input type="number" placeholder="0" value="${ing.qtyUsed}" data-id="${ing.id}" data-field="qtyUsed" class="ing-input px-2.5 py-1.5 rounded-lg border border-stone-300 text-sm font-mono focus:ring-2 focus:ring-amber-400 focus:outline-none" />
+            <input type="number" placeholder="0" value="${ing.packageQty}" data-id="${ing.id}" data-field="packageQty" class="ing-input px-2.5 py-1.5 rounded-lg border border-stone-300 text-sm font-mono focus:ring-2 focus:ring-amber-400 focus:outline-none" />
+            <input type="number" placeholder="0" value="${ing.packageCost}" data-id="${ing.id}" data-field="packageCost" class="ing-input px-2.5 py-1.5 rounded-lg border border-stone-300 text-sm font-mono focus:ring-2 focus:ring-amber-400 focus:outline-none" />
+            <select data-id="${ing.id}" data-field="unit" class="ing-input px-2 py-1.5 rounded-lg border border-stone-300 text-sm focus:ring-2 focus:ring-amber-400 focus:outline-none">
+                <option value="g" ${ing.unit==='g'?'selected':''}>g</option>
+                <option value="kg" ${ing.unit==='kg'?'selected':''}>kg</option>
+                <option value="ml" ${ing.unit==='ml'?'selected':''}>ml</option>
+                <option value="l" ${ing.unit==='l'?'selected':''}>l</option>
+                <option value="pieza" ${ing.unit==='pieza'?'selected':''}>pieza</option>
+            </select>
+            <div class="flex items-center justify-between sm:justify-end gap-2">
+                <span class="text-xs font-mono text-stone-500 sm:block">${formatMoney(totalIngCost)}</span>
+                <button class="btn-del-ing text-stone-300 hover:text-rose-600 transition-colors p-1" data-id="${ing.id}">🗑</button>
             </div>
-          </div>
+        `;
+        ingContainer.appendChild(row);
+    });
 
-          <div className="bg-white border border-stone-200 rounded-xl p-4 sm:p-5">
-            <div className="flex items-center gap-2 mb-3">
-              <span>📦</span>
-              <h2 className="font-serif text-lg text-stone-900">Ingredientes</h2>
-            </div>
-            <div className="hidden sm:grid grid-cols-[1.4fr_0.7fr_0.9fr_0.9fr_0.7fr_auto] gap-2 px-1 text-xs font-medium text-stone-400 mb-1">
-              <div>Ingrediente</div>
-              <div>Usaste</div>
-              <div>Paquete (cant.)</div>
-              <div>Paquete (costo)</div>
-              <div>Unidad</div>
-              <div></div>
-            </div>
-            <div className="space-y-2">
-              {active.ingredients.map((ing) => {
-                const qty = num(ing.qtyUsed);
-                const pkgQty = num(ing.packageQty);
-                const pkgCost = num(ing.packageCost);
-                const cost = pkgQty > 0 ? (qty / pkgQty) * pkgCost : 0;
-                return (
-                  <div
-                    key={ing.id}
-                    className="grid grid-cols-2 sm:grid-cols-[1.4fr_0.7fr_0.9fr_0.9fr_0.7fr_auto] gap-2 items-center bg-stone-50 sm:bg-transparent rounded-lg p-2 sm:p-0"
-                  >
-                    <input
-                      value={ing.name}
-                      onChange={(e) => patchIngredient(ing.id, { name: e.target.value })}
-                      placeholder="ej. Avena"
-                      className="col-span-2 sm:col-span-1 px-2.5 py-1.5 rounded-lg border border-stone-300 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400"
-                    />
-                    <input
-                      type="number"
-                      value={ing.qtyUsed}
-                      onChange={(e) => patchIngredient(ing.id, { qtyUsed: e.target.value })}
-                      placeholder="0"
-                      className="px-2.5 py-1.5 rounded-lg border border-stone-300 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-amber-400"
-                    />
-                    <input
-                      type="number"
-                      value={ing.packageQty}
-                      onChange={(e) => patchIngredient(ing.id, { packageQty: e.target.value })}
-                      placeholder="0"
-                      className="px-2.5 py-1.5 rounded-lg border border-stone-300 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-amber-400"
-                    />
-                    <input
-                      type="number"
-                      value={ing.packageCost}
-                      onChange={(e) => patchIngredient(ing.id, { packageCost: e.target.value })}
-                      placeholder="0"
-                      className="px-2.5 py-1.5 rounded-lg border border-stone-300 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-amber-400"
-                    />
-                    <select
-                      value={ing.unit}
-                      onChange={(e) => patchIngredient(ing.id, { unit: e.target.value })}
-                      className="px-2 py-1.5 rounded-lg border border-stone-300 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400"
-                    >
-                      {UNITS.map((u) => (
-                        <option key={u} value={u}>{u}</option>
-                      ))}
-                    </select>
-                    <div className="flex items-center justify-between sm:justify-end gap-2">
-                      <span className="text-xs font-mono text-stone-400 sm:hidden">{money(cost)}</span>
-                      <button
-                        onClick={() => removeIngredient(ing.id)}
-                        className="text-stone-300 hover:text-rose-600 transition-colors p-1"
-                      >
-                        🗑
-                      </button>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-            <button
-              onClick={addIngredient}
-              className="mt-3 flex items-center gap-1.5 text-sm text-amber-700 hover:text-amber-900 font-medium"
-            >
-              + Agregar ingrediente
-            </button>
-            <p className="mt-3 text-xs text-stone-400">
-              ℹ️ Usa la misma unidad en "usaste" y en "paquete" (gramos con gramos, ml con ml). Para piezas sueltas (ej. huevo, plátano) usa unidad "pieza".
-            </p>
-          </div>
-
-          <div className="bg-white border border-stone-200 rounded-xl p-4 sm:p-5">
-            <div className="flex items-center gap-2 mb-3">
-              <span>%</span>
-              <h2 className="font-serif text-lg text-stone-900">Costos indirectos, tiempo y margen</h2>
-            </div>
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-              <div>
-                <label className="text-xs font-medium text-stone-500">Empaque / pieza</label>
-                <input type="number" value={active.packagingCostPerUnit} onChange={(e) => patchActive({ packagingCostPerUnit: e.target.value })} className="w-full mt-1 px-2.5 py-1.5 rounded-lg border border-stone-300 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-amber-400" />
-              </div>
-              <div>
-                <label className="text-xs font-medium text-stone-500">⏱ Minutos totales</label>
-                <input type="number" value={active.laborMinutes} onChange={(e) => patchActive({ laborMinutes: e.target.value })} className="w-full mt-1 px-2.5 py-1.5 rounded-lg border border-stone-300 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-amber-400" />
-              </div>
-              <div>
-                <label className="text-xs font-medium text-stone-500">Tu hora vale</label>
-                <input type="number" value={active.laborRate} onChange={(e) => patchActive({ laborRate: e.target.value })} className="w-full mt-1 px-2.5 py-1.5 rounded-lg border border-stone-300 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-amber-400" />
-              </div>
-              <div>
-                <label className="text-xs font-medium text-stone-500">% indirectos</label>
-                <input type="number" value={active.indirectPct} onChange={(e) => patchActive({ indirectPct: e.target.value })} className="w-full mt-1 px-2.5 py-1.5 rounded-lg border border-stone-300 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-amber-400" />
-              </div>
-            </div>
-            <div className="mt-3 grid grid-cols-1 sm:grid-cols-[1fr_auto] gap-3 items-end">
-              <div>
-                <label className="text-xs font-medium text-stone-500">Margen de ganancia que quieres (%)</label>
-                <input type="range" min="10" max="150" value={active.marginPct} onChange={(e) => patchActive({ marginPct: e.target.value })} className="w-full mt-2 accent-amber-700" />
-              </div>
-              <div className="font-mono text-amber-800 text-lg font-semibold text-right">{num(active.marginPct).toFixed(0)}%</div>
-            </div>
-            <p className="mt-2 text-xs text-stone-400">
-              Gas, luz, agua y desgaste de equipo van en "% indirectos" (10% es un punto de partida común). Tu hora por defecto está puesta en el salario mínimo 2026 ($39.38/hora, zona general) — súbela si tu trabajo vale más que eso, que seguro sí.
-            </p>
-          </div>
-
-          <div className="bg-white border border-stone-200 rounded-xl p-4 sm:p-5">
-            <h2 className="font-serif text-lg text-stone-900 mb-3">Desglose por pieza</h2>
-            <div className="text-sm font-mono divide-y divide-stone-100">
-              <Row label="Ingredientes" value={ingredientCostPerUnit} />
-              <Row label="Empaque" value={packagingCostPerUnit} />
-              <Row label="Indirectos" value={indirectCostPerUnit} />
-              <Row label="Tu mano de obra" value={laborCostPerUnit} />
-              <Row label="Costo total" value={totalCostPerUnit} bold />
-              <Row label={`Ganancia (${num(active.marginPct).toFixed(0)}%)`} value={marginAmount} />
-              <Row label="Precio venta directa" value={directPrice} bold accent />
-            </div>
-            <div className={`mt-4 text-xs rounded-lg px-3 py-2 ${inHealthyRange ? "bg-emerald-50 text-emerald-800" : "bg-amber-50 text-amber-800"}`}>
-              ℹ️ Tus ingredientes son {ingredientPct.toFixed(0)}% del precio directo — el rango sano en el sector es 25%-35%.{" "}
-              {inHealthyRange ? "Vas bien." : ingredientPct > 38 ? "Está alto: sube el precio o revisa porciones/proveedor." : "Tienes margen para invertir en mejores ingredientes si quieres."}
-            </div>
-          </div>
-
-          <div className="bg-white border border-stone-200 rounded-xl p-4 sm:p-5">
-            <h2 className="font-serif text-lg text-stone-900 mb-1">Precio por canal de venta</h2>
-            <p className="text-xs text-stone-400 mb-3">Misma ganancia real en los tres — el precio sube para compensar la comisión de cada plataforma (incluye el 16% de IVA sobre la comisión).</p>
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-              <ChannelCard icon="🛵" label="Directo" sub="WhatsApp/redes + tú entregas o DiDi Entrega Light" price={directPrice} tone="emerald" />
-              <ChannelCard
-                icon="🚚"
-                label="DiDi Food, reparto propio"
-                sub={<>comisión <input type="number" step="0.1" value={active.commissionPropio} onChange={(e) => patchActive({ commissionPropio: e.target.value })} className="w-14 px-1 py-0.5 rounded border border-stone-300 text-xs font-mono" />%</>}
-                price={pricePropio}
-                tone="amber"
-              />
-              <ChannelCard
-                icon="🏪"
-                label="Uber Eats / Rappi / DiDi con reparto de la app"
-                sub={<>comisión <input type="number" step="0.1" value={active.commissionApp} onChange={(e) => patchActive({ commissionApp: e.target.value })} className="w-14 px-1 py-0.5 rounded border border-stone-300 text-xs font-mono" />%</>}
-                price={priceApps}
-                tone="rose"
-              />
-            </div>
-          </div>
-
-          <p className="text-center text-xs text-stone-400 pb-4">
-            Tus recetas se guardan en la nube en tu cuenta de Google — ábrelo desde cualquier dispositivo con la misma cuenta.
-          </p>
-        </div>
-      </div>
-    </div>
-  );
+    calculateTotals(active);
 }
 
-function Row({ label, value, bold, accent }) {
-  return (
-    <div className="flex items-center justify-between py-1.5">
-      <span className={`font-sans ${bold ? "text-stone-900 font-medium" : "text-stone-500"}`}>{label}</span>
-      <span className={`${bold ? "font-semibold" : ""} ${accent ? "text-amber-800 text-base" : "text-stone-800"}`}>{money(value)}</span>
-    </div>
-  );
+/* ======================================================================
+   CÁLCULOS MATEMÁTICOS DE COSTEO
+   ====================================================================== */
+function calculateTotals(active) {
+    const totalIngredientsCost = active.ingredients.reduce((sum, ing) => {
+        const qty = cleanNum(ing.qtyUsed);
+        const pkgQty = cleanNum(ing.packageQty);
+        const pkgCost = cleanNum(ing.packageCost);
+        return sum + (pkgQty > 0 ? (qty / pkgQty) * pkgCost : 0);
+    }, 0);
+
+    const servings = Math.max(1, cleanNum(active.servings));
+    const ingredientCostPerUnit = totalIngredientsCost / servings;
+    const packagingCostPerUnit = cleanNum(active.packagingCostPerUnit);
+    const directCostPerUnit = ingredientCostPerUnit + packagingCostPerUnit;
+    const indirectCostPerUnit = directCostPerUnit * (cleanNum(active.indirectPct) / 100);
+    const laborCostTotal = (cleanNum(active.laborMinutes) / 60) * cleanNum(active.laborRate);
+    const laborCostPerUnit = laborCostTotal / servings;
+    
+    const totalCostPerUnit = directCostPerUnit + indirectCostPerUnit + laborCostPerUnit;
+    const marginAmount = totalCostPerUnit * (cleanNum(active.marginPct) / 100);
+    const directPrice = totalCostPerUnit + marginAmount;
+
+    // Comisiones aplicadas a los canales inversos
+    const propioComm = Math.min(0.95, cleanNum(active.commissionPropio) / 100);
+    const appComm = Math.min(0.95, cleanNum(active.commissionApp) / 100);
+    const pricePropio = directPrice / (1 - propioComm);
+    const priceApps = directPrice / (1 - appComm);
+
+    const ingredientPct = directPrice > 0 ? (ingredientCostPerUnit / directPrice) * 100 : 0;
+
+    // Pintar desglose
+    const breakdownContainer = document.getElementById("breakdown-container");
+    breakdownContainer.innerHTML = `
+        <div class="flex justify-between py-1.5"><span class="text-stone-500">Ingredientes</span><span>${formatMoney(ingredientCostPerUnit)}</span></div>
+        <div class="flex justify-between py-1.5"><span class="text-stone-500">Empaque</span><span>${formatMoney(packagingCostPerUnit)}</span></div>
+        <div class="flex justify-between py-1.5"><span class="text-stone-500">Indirectos</span><span>${formatMoney(indirectCostPerUnit)}</span></div>
+        <div class="flex justify-between py-1.5"><span class="text-stone-500">Mano de obra</span><span>${formatMoney(laborCostPerUnit)}</span></div>
+        <div class="flex justify-between py-1.5 font-bold text-stone-900 border-t border-stone-200"><span>Costo Total</span><span>${formatMoney(totalCostPerUnit)}</span></div>
+        <div class="flex justify-between py-1.5"><span class="text-stone-500">Ganancia (${cleanNum(active.marginPct).toFixed(0)}%)</span><span>${formatMoney(marginAmount)}</span></div>
+        <div class="flex justify-between py-2 font-bold text-amber-900 text-base border-t-2 border-dashed border-amber-200"><span>Precio de Venta Directa</span><span>${formatMoney(directPrice)}</span></div>
+    `;
+
+    // Indicador de Salud del Negocio
+    const health = document.getElementById("health-indicator");
+    health.innerText = `Tus ingredientes representan el ${ingredientPct.toFixed(0)}% del precio directo (rango sugerido: 25%-35%). `;
+    if (ingredientPct >= 22 && ingredientPct <= 38) {
+        health.className = "mt-4 text-xs rounded-lg px-3 py-2 font-medium bg-emerald-50 text-emerald-800";
+        health.innerText += "¡Tu margen es saludable!";
+    } else if (ingredientPct > 38) {
+        health.className = "mt-4 text-xs rounded-lg px-3 py-2 font-medium bg-amber-50 text-amber-800";
+        health.innerText += "Costo alto: Considera ajustar porciones o subir el precio.";
+    } else {
+        health.className = "mt-4 text-xs rounded-lg px-3 py-2 font-medium bg-blue-50 text-blue-800";
+        health.innerText += "Tienes margen extra para mejorar insumos si lo deseas.";
+    }
+
+    // Actualizar Precios de Tarjetas de Canal de Venta
+    document.getElementById("price-direct").innerText = formatMoney(directPrice);
+    document.getElementById("price-propio").innerText = formatMoney(pricePropio);
+    document.getElementById("price-apps").innerText = formatMoney(priceApps);
 }
 
-function ChannelCard({ icon, label, sub, price, tone }) {
-  const tones = {
-    emerald: "bg-emerald-50 border-emerald-200 text-emerald-900",
-    amber: "bg-amber-50 border-amber-200 text-amber-900",
-    rose: "bg-rose-50 border-rose-200 text-rose-900",
-  };
-  return (
-    <div className={`rounded-xl border p-3.5 ${tones[tone]}`}>
-      <div className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide opacity-80">
-        <span>{icon}</span>{label}
-      </div>
-      <div className="mt-2 text-2xl font-mono font-semibold">{money(price)}</div>
-      <div className="mt-1 text-xs opacity-70">{sub}</div>
-    </div>
-  );
-}
+/* ======================================================================
+   ESCUCHADORES DE EVENTOS E INTERACCIONES DEL DOM
+   ====================================================================== */
+// Capturar cambios en inputs generales de la receta activa
+document.addEventListener("input", (e) => {
+    const active = getActiveRecipe();
+    if (!active) return;
 
-ReactDOM.createRoot(document.getElementById("root")).render(<App />);
+    if (e.target.id === "recipe-name") { active.name = e.target.value; updateUI(); queueCloudSave(); }
+    if (e.target.id === "recipe-servings") { active.servings = cleanNum(e.target.value); calculateTotals(active); queueCloudSave(); }
+    if (e.target.id === "cost-packaging") { active.packagingCostPerUnit = e.target.value; calculateTotals(active); queueCloudSave(); }
+    if (e.target.id === "cost-minutes") { active.laborMinutes = e.target.value; calculateTotals(active); queueCloudSave(); }
+    if (e.target.id === "cost-labor-rate") { active.laborRate = e.target.value; calculateTotals(active); queueCloudSave(); }
+    if (e.target.id === "cost-indirect-pct") { active.indirectPct = e.target.value; calculateTotals(active); queueCloudSave(); }
+    if (e.target.id === "cost-margin-range") { 
+        active.marginPct = e.target.value; 
+        document.getElementById("cost-margin-text").innerText = `${Number(active.marginPct).toFixed(0)}%`;
+        calculateTotals(active); 
+        queueCloudSave(); 
+    }
+    if (e.target.id === "comm-propio") { active.commissionPropio = e.target.value; calculateTotals(active); queueCloudSave(); }
+    if (e.target.id === "comm-apps") { active.commissionApp = e.target.value; calculateTotals(active); queueCloudSave(); }
+
+    // Escuchar cambios dinámicos dentro de las filas de ingredientes
+    if (e.target.classList.contains("ing-input")) {
+        const ingId = e.target.dataset.id;
+        const field = e.target.dataset.field;
+        const ingredient = active.ingredients.find(i => i.id === ingId);
+        if (ingredient) {
+            ingredient[field] = e.target.value;
+            // Si cambia numéricos, recalculamos totales en caliente sin redibujar toda la tabla para evitar perder foco
+            calculateTotals(active);
+            queueCloudSave();
+        }
+    }
+});
+
+// Forzar refresco visual completo si el foco sale de un input de ingrediente (para ajustar dinero estático)
+document.addEventListener("focusout", (e) => {
+    if (e.target.classList.contains("ing-input") && e.target.dataset.field !== "name") {
+        updateUI();
+    }
+});
+
+// Agregar Receta
+document.getElementById("btn-add-recipe").addEventListener("click", () => {
+    const newRec = createEmptyRecipe(state.recipes.length + 1);
+    state.recipes.push(newRec);
+    state.activeId = newRec.id;
+    updateUI();
+    queueCloudSave();
+});
+
+// Eliminar Receta Activa
+document.getElementById("btn-del-recipe").addEventListener("click", () => {
+    if (state.recipes.length <= 1) return;
+    state.recipes = state.recipes.filter(r => r.id !== state.activeId);
+    state.activeId = state.recipes[0].id;
+    updateUI();
+    queueCloudSave();
+});
+
+// Agregar Ingrediente
+document.getElementById("btn-add-ingredient").addEventListener("click", () => {
+    const active = getActiveRecipe();
+    active.ingredients.push(createEmptyIngredient());
+    updateUI();
+    queueCloudSave();
+});
+
+// Eliminar Ingrediente
+document.addEventListener("click", (e) => {
+    if (e.target.classList.contains("btn-del-ing")) {
+        const active = getActiveRecipe();
+        if (active.ingredients.length <= 1) return; // Forzar mínimo 1 fila
+        const ingId = e.target.dataset.id;
+        active.ingredients = active.ingredients.filter(i => i.id !== ingId);
+        updateUI();
+        queueCloudSave();
+    }
+});
 </script>
 </body>
 </html>
